@@ -112,4 +112,18 @@ SELECT
 FROM Users u 
 LEFT JOIN Monthly_Sale cte USING (user_id);
 ```
-
+### **Q5: Intra-Category Ranking (Top 2 Transactions)**
+Business Question: What are the top 2 highest individual transactions for every product
+```sql
+WITH RankedSales AS (
+    SELECT 
+        category_id, amount,
+        DENSE_RANK() OVER(PARTITION BY category_id ORDER BY amount DESC) as rnk
+    FROM Transactions
+)
+SELECT c.category_name, rs.amount
+FROM RankedSales rs
+JOIN Categories c ON rs.category_id = c.category_id
+WHERE rs.rnk <= 2;
+```
+** FOR Full Analytical Report check Analytical_queries inside sql_scripts Folder
