@@ -25,7 +25,7 @@ CREATE TABLE Users (
     joining_date DATE,
     credit_limit DECIMAL(10, 2) DEFAULT 5000.00
 );
----
+```
 
 ## **2. Automation & Data Engineering**
 
@@ -48,4 +48,68 @@ BEGIN
     END IF;
 END $$
 DELIMITER ;
+```
+
+## **3.Data Sanitization (Stored Procedure)**
+I developed the CleanAndValidateData() procedure to handle common "dirty data" scenarios found in production environments.
+The Logic: It automatically fills NULL credit values with a safe default (5000.00), standardizes user names to Proper Case, and generates a real-time flag report for transactions that exceed credit limits.
+
+```sql
+DELIMITER $$
+CREATE PROCEDURE CleanAndValidateData()
+BEGIN
+    -- 1. Handling NULL Credit Limits (The Industry Requirement)
+    IF EXISTS (SELECT 1 FROM Users WHERE credit_limit IS NULL) THEN
+        UPDATE Users 
+        SET credit_limit = 5000.00 
+        WHERE credit_limit IS NULL;
+        SELECT 'CLEANUP: NULL credit limits updated to 5000.00' AS Log;
+    ELSE
+        SELECT 'CLEANUP: No NULL values found' AS Log;
+    END IF;
+
+    -- 2. Standardizing Names (Capitalizing first letter)
+    -- This shows you can handle "dirty" text data
+    UPDATE Users 
+    SET first_name = CONCAT(UPPER(LEFT(first_name, 1)), LOWER(SUBSTRING(first_name, 2)));
+
+    -- 3. Flagging high-value transactions
+    -- Let's see if any transaction exceeds a limit (Data Analysis)
+    SELECT u.first_name, u.last_name, t.amount, u.credit_limit
+    FROM Users u
+    JOIN Transactions t ON u.user_id = t.user_id
+    WHERE t.amount > u.credit_limit;
+    
+END $$
+
+DELIMITER ;
+```
+## **4.Performance Tuning (Indexing)**
+To ensure the platform remains responsive as transaction volume scales, I implemented B-Tree Indexing strategies.
+### **Composite Indexing**: I created idx_user_date_composite on (user_id, transaction_date). This is specifically optimized for time-series queries, allowing the engine to skip millions of irrelevant rows when searching for a specific user's monthly activity.
+
+```sql
+-- Optimizing time-series retrieval
+CREATE INDEX idx_user_date_composite ON Transactions(user_id, transaction_date);
+```
+
+## **3. Business Analysis & Key Findings**
+The following queries represent the analytical core of the project, developed to provide actionable financial insights:
+
+### **Q4: Monthly Momentum (The February Report)**
+Business Question: What was the total spending for every user in February 2025, including those who were inactive? Technical Skill: Utilizes CTEs and LEFT JOINs to ensure "zero-spenders" are represented in the report as 0 instead of being filtered out.
+
+```sql
+WITH Monthly_Sale AS (
+    SELECT user_id, SUM(amount) AS total_spent
+    FROM Transactions
+    WHERE MONTH(transaction_date) = 2 AND YEAR(transaction_date) = 2025
+    GROUP BY user_id
+)
+SELECT 
+    CONCAT(u.first_name, ' ', u.last_name) AS USER_NAME,
+    COALESCE(cte.total_spent, 0) AS feb_total_spent
+FROM Users u 
+LEFT JOIN Monthly_Sale cte USING (user_id);
+```
 
