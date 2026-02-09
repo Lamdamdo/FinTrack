@@ -25,3 +25,27 @@ CREATE TABLE Users (
     joining_date DATE,
     credit_limit DECIMAL(10, 2) DEFAULT 5000.00
 );
+---
+
+## **2. Automation & Data Engineering**
+
+### **Audit Logging & Real-time Summaries (Triggers)**
+I implemented SQL Triggers to handle critical backend logic automatically, ensuring data consistency and security without requiring manual application-layer updates.
+
+* **`after_credit_limit_update`**: This trigger creates an immutable audit trail. Every time a user's credit limit is modified, the old and new values are logged in the `Audit_Log` table for security compliance.
+* **`after_transaction_insert`**: To provide instant feedback in the UI, this trigger updates the `User_Spending_Summary` table immediately after a new purchase is recorded.
+
+```sql
+-- Trigger for automated auditing
+DELIMITER $$
+CREATE TRIGGER after_credit_limit_update
+AFTER UPDATE ON Users
+FOR EACH ROW
+BEGIN
+    IF OLD.credit_limit <> NEW.credit_limit THEN
+        INSERT INTO Audit_Log (user_id, old_credit_limit, new_credit_limit)
+        VALUES (OLD.user_id, OLD.credit_limit, NEW.credit_limit);
+    END IF;
+END $$
+DELIMITER ;
+
